@@ -217,7 +217,7 @@ function screen(inner) {
   const nickVal = document.getElementById("nick")?.value;
   const pinVal = document.getElementById("pin")?.value;
   const linkVal = document.getElementById("link")?.value;
-  const scrollY = window.scrollY;
+  const scrollTop = app.scrollTop;
   const offline = navigator.onLine ? "" : `<div class="offline">You’re offline — we’ll resume when you reconnect.</div>`;
   const cls = ui._animateScreen ? "screen screen-enter" : "screen";
   app.innerHTML = `${offline}<div class="${cls}">${inner}</div>`;
@@ -244,7 +244,8 @@ function screen(inner) {
       }
     }
   }
-  if (scrollY) window.scrollTo(0, scrollY);
+  if (ui._animateScreen) app.scrollTop = 0;
+  else app.scrollTop = scrollTop;
 }
 
 function topbar(title, { back, extra } = {}) {
