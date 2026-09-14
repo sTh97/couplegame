@@ -1,0 +1,10 @@
+{
+  "name": "CoupleGame",
+  "short_name": "CoupleGame",
+  "description": "A private two-player couple game",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#12090D",
+  "theme_color": "#12090D",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

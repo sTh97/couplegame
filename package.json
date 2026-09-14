@@ -1,0 +1,16 @@
+{
+  "name": "couplegame",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Private two-player couple interactive game — Netlify + MongoDB MVP",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.12.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

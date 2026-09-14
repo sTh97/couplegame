@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+mongodb.txt
+.DS_Store
+*.log
+.idea/
+.vscode/
+netlify/functions/.netlify/
