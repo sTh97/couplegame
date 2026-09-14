@@ -26,16 +26,13 @@ Open [http://localhost:3000](http://localhost:3000). Use two browser profiles (o
 
 1. Connect this GitHub repo to Netlify (publish directory `public`, functions `netlify/functions`).
 2. `netlify.toml` is already configured, including `/api/*` redirects.
-3. In Netlify → Site settings → Environment variables, set:
+3. In MongoDB Atlas → **Network Access**, add `0.0.0.0/0` (Allow Access from Anywhere). Netlify Functions use changing AWS IPs; without this, creating a room returns 500/503.
+4. Optional: Netlify → Site settings → Environment variables:
 
 | Variable | Value |
 | --- | --- |
-| `MONGODB_URI` | Your Atlas SRV URI, including `/couplegame` |
+| `MONGODB_URI` | Atlas URI, including `/couplegame` |
 | `SESSION_SECRET` | A long random string |
-
-The MongoDB driver runs only in serverless functions — credentials never ship to the browser.
-
-In Atlas, allow network access from anywhere (`0.0.0.0/0`) so Netlify’s serverless IPs can connect.
 
 ## Stack note
 

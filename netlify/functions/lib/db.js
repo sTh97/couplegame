@@ -12,30 +12,50 @@ const MONGODB_URI_STANDARD =
   `mongodb://${USER}:${PASS}@ac-efwjyys-shard-00-00.nt5pm2q.mongodb.net:27017,ac-efwjyys-shard-00-01.nt5pm2q.mongodb.net:27017,ac-efwjyys-shard-00-02.nt5pm2q.mongodb.net:27017/couplegame?ssl=true&replicaSet=atlas-yqwgei-shard-0&authSource=admin&retryWrites=true&w=majority`;
 
 const DB_NAME = process.env.MONGODB_DB || "couplegame";
+const ON_NETLIFY = !!(process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME);
 
 let clientPromise;
 
-async function connectWithFallback() {
-  const opts = {
-    maxPoolSize: 10,
-    serverSelectionTimeoutMS: 8000,
+function clientOptions() {
+  return {
+    maxPoolSize: 5,
+    minPoolSize: 0,
+    serverSelectionTimeoutMS: 6000,
+    connectTimeoutMS: 6000,
+    socketTimeoutMS: 10000,
+    family: 4,
   };
-  try {
-    const client = new MongoClient(MONGODB_URI, opts);
-    return await client.connect();
-  } catch (err) {
-    const msg = String(err && err.message);
-    if (/querySrv|ECONNREFUSED|ENOTFOUND|ETIMEOUT/i.test(msg)) {
-      const client = new MongoClient(MONGODB_URI_STANDARD, opts);
-      return client.connect();
+}
+
+async function tryConnect(uri) {
+  const client = new MongoClient(uri, clientOptions());
+  await client.connect();
+  await client.db(DB_NAME).command({ ping: 1 });
+  return client;
+}
+
+async function connectWithFallback() {
+  const uris = ON_NETLIFY ? [MONGODB_URI_STANDARD, MONGODB_URI] : [MONGODB_URI, MONGODB_URI_STANDARD];
+  let lastErr;
+  for (const uri of uris) {
+    try {
+      return await tryConnect(uri);
+    } catch (err) {
+      lastErr = err;
     }
-    throw err;
   }
+  const wrapped = new Error(lastErr && lastErr.message ? lastErr.message : "Database connection failed");
+  wrapped.name = "MongoConnectionError";
+  wrapped.cause = lastErr;
+  throw wrapped;
 }
 
 function getClient() {
   if (!clientPromise) {
-    clientPromise = connectWithFallback();
+    clientPromise = connectWithFallback().catch((err) => {
+      clientPromise = null;
+      throw err;
+    });
   }
   return clientPromise;
 }
@@ -77,4 +97,15 @@ async function ensureIndexes() {
   ]);
 }
 
-module.exports = { getDb, collections, ensureIndexes, DB_NAME };
+function isDbError(err) {
+  const name = String((err && err.name) || "");
+  const msg = String((err && err.message) || "");
+  return (
+    name.includes("Mongo") ||
+    /mongo|querySrv|ECONNREFUSED|ENOTFOUND|whitelist|not allowed|server selection|authentication|EAI_AGAIN/i.test(
+      msg
+    )
+  );
+}
+
+module.exports = { getDb, collections, ensureIndexes, DB_NAME, isDbError };

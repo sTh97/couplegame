@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { collections, ensureIndexes } = require("./lib/db");
+const { collections, ensureIndexes, isDbError } = require("./lib/db");
 const {
   QUESTIONS,
   CHALLENGES,
@@ -162,7 +162,9 @@ function parsePath(event) {
 function parseBody(event) {
   if (!event.body) return {};
   try {
-    return JSON.parse(event.body);
+    const raw = event.isBase64Encoded ? Buffer.from(event.body, "base64").toString("utf8") : event.body;
+    if (typeof raw === "object") return raw;
+    return JSON.parse(raw);
   } catch {
     return {};
   }
@@ -281,7 +283,11 @@ async function seedIfNeeded() {
   if (cCount === 0) {
     await challenges.insertMany(CHALLENGES.map((c) => ({ ...c, createdAt: now(), updatedAt: now() })));
   }
-  await ensureIndexes();
+  try {
+    await ensureIndexes();
+  } catch (err) {
+    console.error("index_error", err && err.message);
+  }
   seeded = true;
 }
 
@@ -1261,13 +1267,14 @@ exports.handler = async (event) => {
   }
 
   try {
-    await seedIfNeeded();
     const { method, path } = parsePath(event);
     const parts = path.split("/").filter(Boolean);
 
     if (method === "GET" && path === "/api/health") {
       return json(200, { ok: true, service: "couplegame" });
     }
+
+    await seedIfNeeded();
     if (method === "POST" && path === "/api/rooms") return handleCreateRoom(event, cid);
     if (method === "GET" && parts[0] === "api" && parts[1] === "rooms" && parts[2] && parts[3] === undefined) {
       return handlePublicRoom(parts[2], cid);
@@ -1320,7 +1327,15 @@ exports.handler = async (event) => {
 
     return error(404, "NOT_FOUND", "Unknown endpoint.", cid);
   } catch (err) {
-    console.error("api_error", cid, err && err.message);
+    console.error("api_error", cid, err && err.name, err && err.message);
+    if (isDbError(err)) {
+      return error(
+        503,
+        "DB_UNAVAILABLE",
+        "Can't reach MongoDB from Netlify. In Atlas → Network Access, add 0.0.0.0/0 so serverless functions can connect.",
+        cid
+      );
+    }
     return error(500, "SERVER_ERROR", "Something went wrong. Please try again.", cid);
   }
 };
