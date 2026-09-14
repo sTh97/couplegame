@@ -24,6 +24,9 @@ const ui = {
 };
 
 let pollTimer = null;
+let pollInFlight = false;
+let lastVisualKey = "";
+let lastView = null;
 
 function toast(msg) {
   toastEl.textContent = msg;
@@ -36,18 +39,14 @@ function heartSvg() {
 }
 
 function spawnHearts() {
-  if (ui.reducedMotion || !heartsEl) return;
-  const n = 4;
-  for (let i = 0; i < n; i += 1) {
-    const el = document.createElement("div");
-    el.className = "heart";
-    el.textContent = "❤";
-    el.style.left = `${10 + Math.random() * 80}%`;
-    el.style.animationDuration = `${7 + Math.random() * 4}s`;
-    el.style.fontSize = `${14 + Math.random() * 10}px`;
-    heartsEl.appendChild(el);
-    setTimeout(() => el.remove(), 10000);
-  }
+  if (ui.reducedMotion || !heartsEl || ui.view !== "landing") return;
+  const el = document.createElement("div");
+  el.className = "heart";
+  el.textContent = "❤";
+  el.style.left = `${18 + Math.random() * 64}%`;
+  el.style.animationDuration = `${10 + Math.random() * 3}s`;
+  heartsEl.appendChild(el);
+  setTimeout(() => el.remove(), 13000);
 }
 
 function stopPoll() {
@@ -58,9 +57,14 @@ function stopPoll() {
 function startPoll() {
   stopPoll();
   pollTimer = setInterval(() => {
-    if (document.hidden) return;
-    refreshState().catch(() => {});
-  }, 1200);
+    if (document.hidden || pollInFlight) return;
+    pollInFlight = true;
+    refreshState()
+      .catch(() => {})
+      .finally(() => {
+        pollInFlight = false;
+      });
+  }, 2000);
 }
 
 function routeFromPath() {
@@ -105,6 +109,46 @@ async function refreshState() {
   if (!getToken()) return;
   const data = await api("/api/state");
   applyState(data.state);
+}
+
+function visualKey() {
+  const s = ui.state;
+  const g = s?.game;
+  return JSON.stringify({
+    view: ui.view,
+    error: ui.error,
+    loading: ui.loading,
+    selectedOption: ui.selectedOption,
+    selectedChallenge: ui.selectedChallenge,
+    advancing: ui.advancing,
+    ageOk: ui.ageOk,
+    online: navigator.onLine,
+    joinPreview: ui.joinPreview,
+    historyLen: (ui.history || []).length,
+    roomStatus: s?.room?.status,
+    players: s?.room?.players,
+    me: s?.me,
+    game: g && {
+      status: g.status,
+      mode: g.mode,
+      proposedMode: g.proposedMode,
+      modeProposedBy: g.modeProposedBy,
+      effectiveIntensity: g.effectiveIntensity,
+      currentRound: g.currentRound,
+      scores: g.scores,
+      myAnswered: g.myAnswered,
+      partnerAnswered: g.partnerAnswered,
+      mySelectedOptionId: g.mySelectedOptionId,
+      roundResult: g.roundResult,
+      challenge: g.challenge,
+      winner: g.winner,
+      disconnectedPartner: g.disconnectedPartner,
+      questionId: g.myQuestion?.questionId,
+      pausedBy: g.pausedBy,
+      resumeAck: g.resumeAck,
+      reportReady: g.reportReady,
+    },
+  });
 }
 
 function applyState(state) {
@@ -165,9 +209,42 @@ function escapeHtml(str) {
 }
 
 function screen(inner) {
+  const active = document.activeElement;
+  const activeId = active && app.contains(active) ? active.id : "";
+  const start = active && typeof active.selectionStart === "number" ? active.selectionStart : null;
+  const end = active && typeof active.selectionEnd === "number" ? active.selectionEnd : null;
+  const respVal = document.getElementById("resp")?.value;
+  const nickVal = document.getElementById("nick")?.value;
+  const pinVal = document.getElementById("pin")?.value;
+  const linkVal = document.getElementById("link")?.value;
+  const scrollY = window.scrollY;
   const offline = navigator.onLine ? "" : `<div class="offline">You’re offline — we’ll resume when you reconnect.</div>`;
-  app.innerHTML = `${offline}<div class="screen">${inner}</div>`;
+  const cls = ui._animateScreen ? "screen screen-enter" : "screen";
+  app.innerHTML = `${offline}<div class="${cls}">${inner}</div>`;
   bind();
+  const restore = (id, val) => {
+    if (val == null) return;
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  };
+  restore("resp", respVal);
+  restore("nick", nickVal);
+  restore("pin", pinVal);
+  restore("link", linkVal);
+  if (activeId) {
+    const el = document.getElementById(activeId);
+    if (el && typeof el.focus === "function") {
+      el.focus({ preventScroll: true });
+      if (start != null && el.setSelectionRange) {
+        try {
+          el.setSelectionRange(start, end);
+        } catch {
+          /* not a text field */
+        }
+      }
+    }
+  }
+  if (scrollY) window.scrollTo(0, scrollY);
 }
 
 function topbar(title, { back, extra } = {}) {
@@ -585,6 +662,12 @@ function privacy() {
 }
 
 function render() {
+  const key = visualKey();
+  const viewChanged = ui.view !== lastView;
+  if (!viewChanged && key === lastVisualKey) return;
+  lastVisualKey = key;
+  ui._animateScreen = viewChanged && !ui.reducedMotion;
+  lastView = ui.view;
   const v = ui.view;
   if (v === "landing") landing();
   else if (v === "age") age(ui.joinToken ? "join" : "create");
@@ -794,7 +877,7 @@ async function loadJoinPreview() {
 
 async function boot() {
   spawnHearts();
-  setInterval(spawnHearts, 5000);
+  setInterval(spawnHearts, 10000);
   routeFromPath();
   if (ui.joinToken) await loadJoinPreview();
   const restored = await restoreSession();

@@ -34,10 +34,12 @@ body {
   color: var(--text);
   font-family: Outfit, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 body {
   min-height: 100dvh;
+  overscroll-behavior: none;
 }
 
 h1,
@@ -58,6 +60,8 @@ textarea {
 
 button {
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app {
@@ -67,10 +71,11 @@ button {
   padding: 20px 20px calc(28px + var(--safe-b));
   position: relative;
   z-index: 1;
+  contain: layout;
 }
 
-.screen {
-  animation: rise 0.45s ease both;
+.screen-enter {
+  animation: rise 0.32s ease both;
 }
 
 @keyframes rise {
@@ -457,10 +462,12 @@ h1 {
 .heart {
   position: absolute;
   bottom: -20px;
-  opacity: 0.18;
-  animation: floatUp 9s linear forwards;
+  opacity: 0.12;
+  animation: floatUp 11s linear forwards;
   color: var(--secondary);
-  font-size: 18px;
+  font-size: 16px;
+  will-change: transform, opacity;
+  pointer-events: none;
 }
 
 @keyframes floatUp {
@@ -525,7 +532,7 @@ h1 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen,
+  .screen-enter,
   .heart,
   .pulse,
   .skel,
